@@ -12,7 +12,7 @@ async function getToken(): Promise<string> {
             if (globalThis.chrome.runtime.lastError) {
                 reject(globalThis.chrome.runtime.lastError.message)
             } else {
-                resolve(token)
+                resolve(token as string)
             }
         })
     })
@@ -49,7 +49,7 @@ export async function fetchAllLikedVideos(): Promise<VideoItem[]> {
     let pageToken: string | undefined
 
     do {
-        const {item, nextPageToken} await fetchPage(token, pageToken)
+        const { items, nextPageToken } = await fetchPage(token, pageToken)
         all.push(...items)
         pageToken = nextPageToken
     } while (pageToken)

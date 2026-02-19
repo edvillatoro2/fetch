@@ -1,42 +1,48 @@
 <script setup lang="ts">
-function testAuth() {
-  chrome.identity.getAuthToken({ interactive: true}, (token) => {
-    if (chrome.runtime.lastError) {
-      console.log('Auth failed', chrome.runtime.lastError.message)
-    } else {
-      console.log('Auth success, token:', token)
-    }
-  })
+import { ref, computed, onMounted } from 'vue'
+import { fetchAllLikedVideos, type VideoItem } from '@/services/youtube'
+
+const videos = ref<VideoItem[]>([])
+const query = ref('')
+const loading = ref(false)
+const error = ref<string | null>(null)
+
+const results = computed(() => {
+  const q = query.value.toLowerCase().trim()
+  if (!q) return videos.value
+  return videos.value.filter(x =>
+    x.title.toLowerCase().includes(q) ||
+    x.description.toLowerCase().includes(q)
+  )
+})
+
+async function load() {
+  loading.value = true
+  error.value = null
+  try {
+    videos.value = await fetchAllLikedVideos()
+    console.log('fetched:', videos.value.length, 'videos')
+  } catch (e: any) {
+    console.error(e)
+    error.value = e.message
+  } finally {
+    loading.value = false
+  }
 }
+
+onMounted(load)
 </script>
 
 <template>
-  <div class="bg-white">
-    <a href="https://vite.dev" target="_blank">
-      <img src="@/assets/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="@/assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
-    <a href="https://crxjs.dev/vite-plugin" target="_blank">
-      <img src="@/assets/crx.svg" class="logo crx" alt="crx logo" />
-    </a>
-    <div class="flex w-full">
-      <div class="rounded-full">
-        <input
-          class="p-2 rounded-l-full border border-slate-300 w-3/4"
-          type="text"
-          placeholder="Search"
-          name="search"
-        />
-        <button
-          class="p-2 border-l-0 border border-slate-300 cursor-pointer rounded-r-full bg-slate-200 hover:bg-[#646cff] w-1/4"
-          type="submit"
-          @click="testAuth"
-        >
-          button testAuth
-        </button>
-      </div>
+  <div class="p-4">
+    <input v-model="query" placeholder="Search liked videos..." class="w-full p-2 border rounded mb-4" />
+    <p v-if="loading">Loading your liked videos...</p>
+    <p v-if="error" class="text-red-500">{{ error }}</p>
+    <div v-for="result in results" :key="result.id" class="flex gap-2 mb-3">
+      <a :href="result.url" target="_blank" class="flex gap-2">
+        <img :src="result.thumbnail" class="w-24 h-auto rounded" />
+        <span class="text-sm">{{ result.title }}</span>
+      </a>
     </div>
   </div>
 </template>
