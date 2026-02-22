@@ -25,6 +25,10 @@ export default defineManifest({
       'https://www.googleapis.com/auth/youtube.readonly'
     ]
     },
+    background: {
+    service_worker: 'src/background/index.ts',
+    type: 'module',
+  },
   permissions: ['identity', 'storage', 'tabs', 'sidePanel'],
   host_permissions: [
     'https://www.googleapis.com/*',

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { fetchAllLikedVideos, getToken, getTokenWithAccountPicker, videosCategories, type VideoItem } from '@/services/youtube'
+import { getVideosFromBackground, setVideosInBackground, clearBackground } from '@/services/background'
 import { Categories } from '@/config/categories'
 
 const videos = ref<VideoItem[]>([])
@@ -56,11 +57,21 @@ async function fetchChannelAndVideos(token: string) {
   }
 
   const rawVideos = await fetchAllLikedVideos(token)
-  videos.value = await videosCategories(rawVideos, token)
+  const enriched = await videosCategories(rawVideos, token)
+  videos.value = enriched.map(v => ({
+    id: v.id,
+    title: v.title,
+    thumbnail: v.thumbnail,
+    url: v.url,
+    categoryId: v.categoryId,
+    description: ''
+  }))
 
-  // Always cache after fetching
+  // Store full video list in service worker memory
+  await setVideosInBackground(videos.value)
+
+  // Only store lightweight data in chrome.storage
   await globalThis.chrome.storage.local.set({
-    likedVideos: videos.value,
     activeChannel: activeChannel.value,
     fetchedAt: Date.now()
   })
@@ -72,43 +83,47 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    // Check cache first
     const cache = await globalThis.chrome.storage.local.get([
-      'likedVideos',
       'activeChannel',
-      'fetchedAt'
+      'fetchedAt',
+      'webFlowToken'
     ]) as {
-      likedVideos?: VideoItem[]
       activeChannel?: { title: string, thumbnail: string }
       fetchedAt?: number
+      webFlowToken?: string
     }
 
     const oneHour = 60 * 60 * 1000
-    if (
-      Array.isArray(cache.likedVideos) &&
-      cache.activeChannel &&
+    const cacheValid = cache.activeChannel &&
       cache.fetchedAt &&
       Date.now() - cache.fetchedAt < oneHour
-    ) {
-      videos.value = cache.likedVideos
-      activeChannel.value = cache.activeChannel
-      console.log('loaded from cache:', videos.value.length, 'videos')
-      return
+
+    if (cacheValid) {
+      // Try to get videos from service worker memory first
+      const bgVideos = await getVideosFromBackground()
+      if (bgVideos.length > 0) {
+        videos.value = bgVideos
+        activeChannel.value = cache.activeChannel!
+        console.log('loaded from background memory:', videos.value.length, 'videos')
+        return
+      }
     }
 
-    // Try silent auth first — no popup
-    const silentToken = await new Promise<string | null>((resolve) => {
-      globalThis.chrome.identity.getAuthToken({ interactive: false }, (t) => {
-        resolve(t as string ?? null)
-      })
-    })
-
-    if (silentToken) {
-      await fetchChannelAndVideos(silentToken)
+    // Need to re-fetch — use stored token if available
+    if (cache.webFlowToken) {
+      await fetchChannelAndVideos(cache.webFlowToken)
     } else {
-      // Only show login popup if no cached token
-      const token = await getToken()
-      await fetchChannelAndVideos(token)
+      const silentToken = await new Promise<string | null>((resolve) => {
+        globalThis.chrome.identity.getAuthToken({ interactive: false }, (t) => {
+          resolve(t as string ?? null)
+        })
+      })
+      if (silentToken) {
+        await fetchChannelAndVideos(silentToken)
+      } else {
+        const token = await getToken()
+        await fetchChannelAndVideos(token)
+      }
     }
   } catch (e: any) {
     console.error(e)
@@ -124,15 +139,17 @@ async function switchAccount() {
   activeChannel.value = null
   videos.value = []
 
-  // Clear cache so next load fetches fresh data
+  await clearBackground()
   await globalThis.chrome.storage.local.clear()
 
   try {
     const token = await getTokenWithAccountPicker()
+    await globalThis.chrome.storage.local.set({ webFlowToken: token })
     await fetchChannelAndVideos(token)
   } catch (e: any) {
     try {
       const token = await getTokenWithAccountPicker()
+      await globalThis.chrome.storage.local.set({ webFlowToken: token })
       await fetchChannelAndVideos(token)
     } catch (e2: any) {
       console.error(e2)
@@ -143,29 +160,18 @@ async function switchAccount() {
   }
 }
 
-async function forceRefresh() {
-  await globalThis.chrome.storage.local.clear()
-  await load()
-}
-
 onMounted(load)
 </script>
 
 <template>
-  <div class="p-4">
-    <!-- Active Channel + Switch Account -->
-    <div class="flex items-center justify-between mb-3">
+  <div class="flex flex-col gap-4">
+    <!-- switch account button -->
+    <div class="flex items-center justify-between">
       <div v-if="activeChannel" class="flex items-center gap-2">
         <img :src="activeChannel.thumbnail" class="w-6 h-6 rounded-full" />
         <span class="text-sm font-medium">{{ activeChannel.title }}</span>
       </div>
-      <div class="flex items-center gap-2 ml-auto">
-        <button
-          @click="forceRefresh"
-          class="text-xs text-gray-400 underline whitespace-nowrap"
-        >
-          Refresh
-        </button>
+      <div class="flex">
         <button
           @click="switchAccount"
           class="text-xs text-gray-400 underline whitespace-nowrap"
@@ -175,27 +181,27 @@ onMounted(load)
       </div>
     </div>
 
-    <!-- Search -->
+    <!-- search bar -->
     <input
       v-model="query"
       placeholder="Search liked videos..."
-      class="w-full p-2 border rounded mb-3"
+      class="w-full p-2 border rounded"
     />
 
-    <!-- Category Tabs -->
-    <div class="flex gap-1 overflow-x-auto mb-4 pb-1">
+    <!-- categories tabs -->
+    <div class="flex gap-1 overflow-x-auto pb-1">
       <button
-        v-for="cat in Categories"
-        :key="cat.id"
-        @click="activeCategory = cat.id"
+        v-for="category in Categories"
+        :key="category.id"
+        @click="activeCategory = category.id"
         :class="[
           'px-3 py-1 rounded-full text-sm whitespace-nowrap transition-colors',
-          activeCategory === cat.id
+          activeCategory === category.id
             ? 'bg-red-600 text-white'
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
         ]"
       >
-        {{ cat.label }}
+        {{ category.label }}
       </button>
     </div>
 
@@ -207,7 +213,7 @@ onMounted(load)
     </p>
 
     <!-- Video List -->
-    <div v-for="v in paginatedResults" :key="v.id" class="flex gap-2 mb-3">
+    <div v-for="v in paginatedResults" :key="v.id" class="flex gap-2">
       <a :href="v.url" target="_blank" class="flex gap-2 hover:opacity-80">
         <img :src="v.thumbnail" class="w-24 h-auto rounded flex-shrink-0" />
         <span class="text-sm">{{ v.title }}</span>
