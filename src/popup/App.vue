@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { fetchAllLikedVideos, getToken, getTokenWithAccountPicker, videosCategories, type VideoItem } from '@/services/youtube'
 import { Categories } from '@/config/categories'
 
@@ -9,14 +9,15 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const activeCategory = ref('all')
 const activeChannel = ref<{ title: string, thumbnail: string } | null>(null)
+const currentPage = ref(1)
+const pageSize = 25
 
 const results = computed(() => {
+  if (!Array.isArray(videos.value)) return []
   let filtered = videos.value
-
   if (activeCategory.value !== 'all') {
     filtered = filtered.filter(x => x.categoryId === activeCategory.value)
   }
-
   const q = query.value.toLowerCase().trim()
   if (!q) return filtered
   return filtered.filter(x =>
@@ -24,6 +25,22 @@ const results = computed(() => {
     x.description.toLowerCase().includes(q)
   )
 })
+
+const paginatedResults = computed(() => {
+  if (!Array.isArray(results.value)) return []
+  const start = (currentPage.value - 1) * pageSize
+  return results.value.slice(start, start + pageSize)
+})
+
+const totalPages = computed(() => {
+  if (!Array.isArray(results.value)) return 0
+  return Math.ceil(results.value.length / pageSize)
+})
+
+watch([activeCategory, query], () => {
+  currentPage.value = 1
+})
+
 async function fetchChannelAndVideos(token: string) {
   const res = await fetch(
     'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true',
@@ -40,14 +57,15 @@ async function fetchChannelAndVideos(token: string) {
 
   const rawVideos = await fetchAllLikedVideos(token)
   videos.value = await videosCategories(rawVideos, token)
-  console.log('fetched:', videos.value.length, 'videos')
 
-  // Cache results
+  // Always cache after fetching
   await globalThis.chrome.storage.local.set({
     likedVideos: videos.value,
     activeChannel: activeChannel.value,
     fetchedAt: Date.now()
   })
+
+  console.log('fetched and cached:', videos.value.length, 'videos')
 }
 
 async function load() {
@@ -57,7 +75,7 @@ async function load() {
     // Check cache first
     const cache = await globalThis.chrome.storage.local.get([
       'likedVideos',
-      'activeChannel', 
+      'activeChannel',
       'fetchedAt'
     ]) as {
       likedVideos?: VideoItem[]
@@ -65,12 +83,12 @@ async function load() {
       fetchedAt?: number
     }
 
-    const ONE_HOUR = 60 * 60 * 1000
+    const oneHour = 60 * 60 * 1000
     if (
-      cache.likedVideos &&
+      Array.isArray(cache.likedVideos) &&
       cache.activeChannel &&
       cache.fetchedAt &&
-      Date.now() - cache.fetchedAt < ONE_HOUR
+      Date.now() - cache.fetchedAt < oneHour
     ) {
       videos.value = cache.likedVideos
       activeChannel.value = cache.activeChannel
@@ -78,8 +96,20 @@ async function load() {
       return
     }
 
-    const token = await getToken()
-    await fetchChannelAndVideos(token)
+    // Try silent auth first — no popup
+    const silentToken = await new Promise<string | null>((resolve) => {
+      globalThis.chrome.identity.getAuthToken({ interactive: false }, (t) => {
+        resolve(t as string ?? null)
+      })
+    })
+
+    if (silentToken) {
+      await fetchChannelAndVideos(silentToken)
+    } else {
+      // Only show login popup if no cached token
+      const token = await getToken()
+      await fetchChannelAndVideos(token)
+    }
   } catch (e: any) {
     console.error(e)
     error.value = e.message
@@ -94,15 +124,28 @@ async function switchAccount() {
   activeChannel.value = null
   videos.value = []
 
+  // Clear cache so next load fetches fresh data
+  await globalThis.chrome.storage.local.clear()
+
   try {
     const token = await getTokenWithAccountPicker()
     await fetchChannelAndVideos(token)
   } catch (e: any) {
-    console.error(e)
-    error.value = e.message
+    try {
+      const token = await getTokenWithAccountPicker()
+      await fetchChannelAndVideos(token)
+    } catch (e2: any) {
+      console.error(e2)
+      error.value = e2.message
+    }
   } finally {
     loading.value = false
   }
+}
+
+async function forceRefresh() {
+  await globalThis.chrome.storage.local.clear()
+  await load()
 }
 
 onMounted(load)
@@ -116,12 +159,20 @@ onMounted(load)
         <img :src="activeChannel.thumbnail" class="w-6 h-6 rounded-full" />
         <span class="text-sm font-medium">{{ activeChannel.title }}</span>
       </div>
-      <button
-        @click="switchAccount"
-        class="text-xs text-gray-400 underline whitespace-nowrap ml-auto"
-      >
-        Switch Account
-      </button>
+      <div class="flex items-center gap-2 ml-auto">
+        <button
+          @click="forceRefresh"
+          class="text-xs text-gray-400 underline whitespace-nowrap"
+        >
+          Refresh
+        </button>
+        <button
+          @click="switchAccount"
+          class="text-xs text-gray-400 underline whitespace-nowrap"
+        >
+          Switch Account
+        </button>
+      </div>
     </div>
 
     <!-- Search -->
@@ -156,11 +207,32 @@ onMounted(load)
     </p>
 
     <!-- Video List -->
-    <div v-for="v in results" :key="v.id" class="flex gap-2 mb-3">
+    <div v-for="v in paginatedResults" :key="v.id" class="flex gap-2 mb-3">
       <a :href="v.url" target="_blank" class="flex gap-2 hover:opacity-80">
         <img :src="v.thumbnail" class="w-24 h-auto rounded flex-shrink-0" />
         <span class="text-sm">{{ v.title }}</span>
       </a>
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="totalPages > 1" class="flex items-center justify-between mt-4">
+      <button
+        @click="currentPage--"
+        :disabled="currentPage === 1"
+        class="px-3 py-1 rounded text-sm bg-gray-100 disabled:opacity-40"
+      >
+        Prev
+      </button>
+      <span class="text-sm text-gray-500">
+        {{ currentPage }} / {{ totalPages }}
+      </span>
+      <button
+        @click="currentPage++"
+        :disabled="currentPage === totalPages"
+        class="px-3 py-1 rounded text-sm bg-gray-100 disabled:opacity-40"
+      >
+        Next
+      </button>
     </div>
   </div>
 </template>
