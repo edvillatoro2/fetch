@@ -30,7 +30,7 @@ export default defineManifest({
     service_worker: "src/background/index.ts",
     type: "module",
   },
-  permissions: ["identity", "storage", "tabs", "sidePanel"],
+  permissions: ["identity", "storage", "sidePanel"],
   host_permissions: [
     "https://www.googleapis.com/*",
     "https://www.youtube.com/*",
