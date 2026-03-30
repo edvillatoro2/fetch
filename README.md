@@ -88,4 +88,7 @@ manifest.config.ts  # Chrome extension manifest configuration
 
 Currently under review for Chrome Web Store publication.
 
+## Privacy Policy
+[Privacy Policy](https://gist.github.com/edvillatoro2/cf018572d6807dca48ffe4c651830b0c)
+
 <!-- google-site-verification: google075ccda66fe42a09.html -->
