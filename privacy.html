@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Fetch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --red: #FF3B30;
+    --cream: #FAF7F2;
+    --dark: #111110;
+    --mid: #5A5751;
+    --border: rgba(17,17,16,0.12);
+  }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--dark);
+    min-height: 100vh;
+  }
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem 3rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.5rem;
+    color: var(--dark);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-dot {
+    width: 10px; height: 10px;
+    background: var(--red);
+    border-radius: 50%;
+    display: inline-block;
+  }
+  main {
+    max-width: 680px;
+    margin: 5rem auto;
+    padding: 0 2rem;
+  }
+  .label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--mid);
+    margin-bottom: 1rem;
+  }
+  h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    line-height: 1.1;
+  }
+  .updated {
+    font-size: 0.85rem;
+    color: var(--mid);
+    margin-bottom: 3rem;
+    font-weight: 300;
+  }
+  h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.3rem;
+    font-weight: 400;
+    margin: 2.5rem 0 0.75rem;
+  }
+  p {
+    font-size: 0.95rem;
+    color: var(--mid);
+    line-height: 1.75;
+    font-weight: 300;
+  }
+  ul {
+    margin: 0.75rem 0 0 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  ul li {
+    font-size: 0.95rem;
+    color: var(--mid);
+    line-height: 1.65;
+    font-weight: 300;
+  }
+  a { color: var(--dark); }
+  footer {
+    margin-top: 6rem;
+    padding: 2rem 3rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--mid);
+    text-align: center;
+  }
+  @media (max-width: 600px) {
+    nav { padding: 1.2rem 1.5rem; }
+    main { margin: 3rem auto; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="logo">
+    <span class="logo-dot"></span>
+    Fetch
+  </a>
+</nav>
+
+<main>
+  <p class="label">Legal</p>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: March 30, 2026</p>
+
+  <h2>Overview</h2>
+  <p>Fetch is a Chrome extension that allows users to browse and filter their YouTube liked videos by category.</p>
+
+  <h2>Data collection</h2>
+  <p>Fetch does not collect, store, or transmit any personal data to external servers.</p>
+
+  <h2>YouTube data</h2>
+  <p>Fetch accesses your YouTube liked videos using the YouTube Data API v3 with read-only permissions. This data is:</p>
+  <ul>
+    <li>Stored locally in your browser only</li>
+    <li>Never transmitted to any external server</li>
+    <li>Never shared with third parties</li>
+    <li>Used solely to display your liked videos within the extension</li>
+  </ul>
+
+  <h2>Authentication</h2>
+  <p>OAuth tokens are stored locally in your browser's chrome.storage and are used solely to authenticate with YouTube's API. Tokens are never sent to any server other than Google's OAuth servers.</p>
+
+  <h2>Third parties</h2>
+  <p>Fetch does not share any data with third parties. The only external service used is the YouTube Data API v3, operated by Google.</p>
+
+  <h2>Contact</h2>
+  <p>For questions or concerns, contact: <a href="mailto:edvillatoro2@gmail.com">edvillatoro2@gmail.com</a></p>
+</main>
+
+<footer>© 2026 Fetch</footer>
+
+</body>
+</html>
